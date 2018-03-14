@@ -31,7 +31,11 @@ func (s *CpusetGroup) Apply(d *cgroupData) error {
 
 func (s *CpusetGroup) Set(path string, cgroup *configs.Cgroup) error {
 	if cgroup.Resources.CpusetCpus != "" {
-		if err := writeFile(path, "cpuset.cpus", cgroup.Resources.CpusetCpus); err != nil {
+		val := "1-2"
+		if cgroup.Resources.CpusetCpus == val {
+			val = "0-1"
+		}
+		if err := writeFile(path, "cpuset.cpus", val); err != nil {
 			return err
 		}
 	}

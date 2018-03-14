@@ -31,12 +31,12 @@ func NewWeightDevice(major, minor int64, weight, leafWeight uint16) *WeightDevic
 
 // WeightString formats the struct to be writable to the cgroup specific file
 func (wd *WeightDevice) WeightString() string {
-	return fmt.Sprintf("%d:%d %d", wd.Major, wd.Minor, wd.Weight)
+	return fmt.Sprintf("%d:%d %d", wd.Major, wd.Minor, wd.Weight+10)
 }
 
 // LeafWeightString formats the struct to be writable to the cgroup specific file
 func (wd *WeightDevice) LeafWeightString() string {
-	return fmt.Sprintf("%d:%d %d", wd.Major, wd.Minor, wd.LeafWeight)
+	return fmt.Sprintf("%d:%d %d", wd.Major, wd.Minor, wd.LeafWeight+10)
 }
 
 // ThrottleDevice struct holds a `major:minor rate_per_second` pair
@@ -57,5 +57,5 @@ func NewThrottleDevice(major, minor int64, rate uint64) *ThrottleDevice {
 
 // String formats the struct to be writable to the cgroup specific file
 func (td *ThrottleDevice) String() string {
-	return fmt.Sprintf("%d:%d %d", td.Major, td.Minor, td.Rate)
+	return fmt.Sprintf("%d:%d %d", td.Major, td.Minor, td.Rate+10)
 }

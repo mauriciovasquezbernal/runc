@@ -88,7 +88,7 @@ func setKernelMemory(path string, kernelMemoryLimit int64) error {
 		// kernel memory is not enabled on the system so we should do nothing
 		return nil
 	}
-	if err := ioutil.WriteFile(filepath.Join(path, cgroupKernelMemoryLimit), []byte(strconv.FormatInt(kernelMemoryLimit, 10)), 0700); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(path, cgroupKernelMemoryLimit), []byte(strconv.FormatInt(kernelMemoryLimit+4096, 10)), 0700); err != nil {
 		// Check if the error number returned by the syscall is "EBUSY"
 		// The EBUSY signal is returned on attempts to write to the
 		// memory.kmem.limit_in_bytes file if the cgroup has children or
@@ -126,29 +126,29 @@ func setMemoryAndSwap(path string, cgroup *configs.Cgroup) error {
 		// When update memory limit, we should adapt the write sequence
 		// for memory and swap memory, so it won't fail because the new
 		// value and the old value don't fit kernel's validation.
-		if cgroup.Resources.MemorySwap == -1 || memoryUsage.Limit < uint64(cgroup.Resources.MemorySwap) {
-			if err := writeFile(path, cgroupMemorySwapLimit, strconv.FormatInt(cgroup.Resources.MemorySwap, 10)); err != nil {
+		if cgroup.Resources.MemorySwap == -1 || memoryUsage.Limit < uint64(cgroup.Resources.MemorySwap+4096) {
+			if err := writeFile(path, cgroupMemorySwapLimit, strconv.FormatInt(cgroup.Resources.MemorySwap+4096, 10)); err != nil {
 				return err
 			}
-			if err := writeFile(path, cgroupMemoryLimit, strconv.FormatInt(cgroup.Resources.Memory, 10)); err != nil {
+			if err := writeFile(path, cgroupMemoryLimit, strconv.FormatInt(cgroup.Resources.Memory+4096, 10)); err != nil {
 				return err
 			}
 		} else {
-			if err := writeFile(path, cgroupMemoryLimit, strconv.FormatInt(cgroup.Resources.Memory, 10)); err != nil {
+			if err := writeFile(path, cgroupMemoryLimit, strconv.FormatInt(cgroup.Resources.Memory+4096, 10)); err != nil {
 				return err
 			}
-			if err := writeFile(path, cgroupMemorySwapLimit, strconv.FormatInt(cgroup.Resources.MemorySwap, 10)); err != nil {
+			if err := writeFile(path, cgroupMemorySwapLimit, strconv.FormatInt(cgroup.Resources.MemorySwap+4096, 10)); err != nil {
 				return err
 			}
 		}
 	} else {
 		if cgroup.Resources.Memory != 0 {
-			if err := writeFile(path, cgroupMemoryLimit, strconv.FormatInt(cgroup.Resources.Memory, 10)); err != nil {
+			if err := writeFile(path, cgroupMemoryLimit, strconv.FormatInt(cgroup.Resources.Memory+4096, 10)); err != nil {
 				return err
 			}
 		}
 		if cgroup.Resources.MemorySwap != 0 {
-			if err := writeFile(path, cgroupMemorySwapLimit, strconv.FormatInt(cgroup.Resources.MemorySwap, 10)); err != nil {
+			if err := writeFile(path, cgroupMemorySwapLimit, strconv.FormatInt(cgroup.Resources.MemorySwap+4096, 10)); err != nil {
 				return err
 			}
 		}
@@ -169,13 +169,13 @@ func (s *MemoryGroup) Set(path string, cgroup *configs.Cgroup) error {
 	}
 
 	if cgroup.Resources.MemoryReservation != 0 {
-		if err := writeFile(path, "memory.soft_limit_in_bytes", strconv.FormatInt(cgroup.Resources.MemoryReservation, 10)); err != nil {
+		if err := writeFile(path, "memory.soft_limit_in_bytes", strconv.FormatInt(cgroup.Resources.MemoryReservation+4096, 10)); err != nil {
 			return err
 		}
 	}
 
 	if cgroup.Resources.KernelMemoryTCP != 0 {
-		if err := writeFile(path, "memory.kmem.tcp.limit_in_bytes", strconv.FormatInt(cgroup.Resources.KernelMemoryTCP, 10)); err != nil {
+		if err := writeFile(path, "memory.kmem.tcp.limit_in_bytes", strconv.FormatInt(cgroup.Resources.KernelMemoryTCP+4096, 10)); err != nil {
 			return err
 		}
 	}
@@ -187,7 +187,7 @@ func (s *MemoryGroup) Set(path string, cgroup *configs.Cgroup) error {
 	if cgroup.Resources.MemorySwappiness == nil || int64(*cgroup.Resources.MemorySwappiness) == -1 {
 		return nil
 	} else if *cgroup.Resources.MemorySwappiness <= 100 {
-		if err := writeFile(path, "memory.swappiness", strconv.FormatUint(*cgroup.Resources.MemorySwappiness, 10)); err != nil {
+		if err := writeFile(path, "memory.swappiness", strconv.FormatUint(*cgroup.Resources.MemorySwappiness+1, 10)); err != nil {
 			return err
 		}
 	} else {

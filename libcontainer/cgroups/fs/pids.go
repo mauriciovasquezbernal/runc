@@ -32,7 +32,7 @@ func (s *PidsGroup) Set(path string, cgroup *configs.Cgroup) error {
 		limit := "max"
 
 		if cgroup.Resources.PidsLimit > 0 {
-			limit = strconv.FormatInt(cgroup.Resources.PidsLimit, 10)
+			limit = strconv.FormatInt(cgroup.Resources.PidsLimit+1, 10)
 		}
 
 		if err := writeFile(path, "pids.max", limit); err != nil {
