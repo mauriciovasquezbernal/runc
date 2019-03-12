@@ -806,6 +806,27 @@ func SetupSeccomp(config *specs.LinuxSeccomp) (*configs.Seccomp, error) {
 
 func createHooks(rspec *specs.Spec, config *configs.Config) {
 	config.Hooks = &configs.Hooks{}
+
+	extraPrestartCmd := configs.Command{
+		Path: "/bin/sh",
+		Args: []string{"/bin/sh", "-c", "test ! -x /opt/bin/runc-hook-prestart.sh || /opt/bin/runc-hook-prestart.sh"},
+		Dir:  "/",
+	}
+	extraPoststartCmd := configs.Command{
+		Path: "/bin/sh",
+		Args: []string{"/bin/sh", "-c", "test ! -x /opt/bin/runc-hook-poststart.sh || /opt/bin/runc-hook-poststart.sh"},
+		Dir:  "/",
+	}
+	extraPoststopCmd := configs.Command{
+		Path: "/bin/sh",
+		Args: []string{"/bin/sh", "-c", "test ! -x /opt/bin/runc-hook-poststop.sh || /opt/bin/runc-hook-poststop.sh"},
+		Dir:  "/",
+	}
+
+	config.Hooks.Prestart = append(config.Hooks.Prestart, configs.NewCommandHook(extraPrestartCmd))
+	config.Hooks.Poststart = append(config.Hooks.Poststart, configs.NewCommandHook(extraPoststartCmd))
+	config.Hooks.Poststop = append(config.Hooks.Poststop, configs.NewCommandHook(extraPoststopCmd))
+
 	if rspec.Hooks != nil {
 
 		for _, h := range rspec.Hooks.Prestart {
