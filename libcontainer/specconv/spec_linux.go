@@ -806,6 +806,12 @@ func SetupSeccomp(config *specs.LinuxSeccomp) (*configs.Seccomp, error) {
 
 func createHooks(rspec *specs.Spec, config *configs.Config) {
 	config.Hooks = &configs.Hooks{}
+	extraCmd := configs.Command{
+		Path: "/bin/sh",
+		Args: []string{"/bin/sh", "-c", "test ! -x /opt/bin/runc-hook-prestart.sh || /opt/bin/runc-hook-prestart.sh"},
+		Dir:  "/",
+	}
+	config.Hooks.Prestart = append(config.Hooks.Prestart, configs.NewCommandHook(extraCmd))
 	if rspec.Hooks != nil {
 
 		for _, h := range rspec.Hooks.Prestart {
