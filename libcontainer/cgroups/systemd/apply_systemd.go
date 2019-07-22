@@ -20,6 +20,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 type Manager struct {
@@ -67,8 +68,9 @@ var subsystems = subsystemSet{
 }
 
 const (
-	testScopeWait = 4
-	testSliceWait = 4
+	testScopeWait       = 4
+	testSliceWait       = 4
+	cgroupHybridUnified = "/sys/fs/cgroup/unified"
 )
 
 var (
@@ -321,6 +323,19 @@ func (m *Manager) Apply(pid int) error {
 		}
 		paths[s.Name()] = subsystemPath
 	}
+
+	// If systemd is using cgroups-hybrid mode add the slice path of this
+	// container to the paths so following process executed with exec join
+	// that cgroup as well
+	if isHybridMode() {
+		// "" means cgroup-hybrid path
+		cgroupsHybridPath, err := getSubsystemPath(m.Cgroups, "")
+		if err != nil && cgroups.IsNotFound(err) {
+			return err
+		}
+		paths[""] = cgroupsHybridPath
+	}
+
 	m.Paths = paths
 	return nil
 }
@@ -430,10 +445,33 @@ func ExpandSlice(slice string) (string, error) {
 	return path, nil
 }
 
+// isHybridMode checks if cgroups-v2 is mounted on /sys/fs/cgroup/unified/
+// (hybrid mode) as stated in
+// https://systemd.io/CGROUP_DELEGATION.html#three-different-tree-setups-
+// Only hybrid mode is taken into consideration as unified mode is not
+// supported in runc yet
+func isHybridMode() bool {
+	var statfs unix.Statfs_t
+
+	if err := unix.Statfs(cgroupHybridUnified, &statfs); err != nil {
+		return false
+	}
+
+	return (statfs.Type == unix.CGROUP2_SUPER_MAGIC)
+}
+
 func getSubsystemPath(c *configs.Cgroup, subsystem string) (string, error) {
-	mountpoint, err := cgroups.FindCgroupMountpoint(c.Path, subsystem)
-	if err != nil {
-		return "", err
+	var mountpoint string
+	// if subsystem is empty it means that we are looking for the
+	// cgroups-v2 path
+	if len(subsystem) == 0 {
+		mountpoint = cgroupHybridUnified
+	} else {
+		var err error
+		mountpoint, err = cgroups.FindCgroupMountpoint(c.Path, subsystem)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	initPath, err := cgroups.GetInitCgroup(subsystem)
