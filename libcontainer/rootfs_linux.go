@@ -312,6 +312,11 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 			return fmt.Errorf("filesystem %q must be mounted on ordinary directory", m.Device)
 		}
 		if err := os.MkdirAll(dest, 0755); err != nil {
+			usernsPath, _ := os.Readlink("/proc/self/ns/user")
+			mntnsPath, _ := os.Readlink("/proc/self/ns/mnt")
+			cmd := exec.Command("sh", "-c", fmt.Sprintf("echo DEBUG ; pwd ; ls -lani . $PWD %s ; id ; cat /proc/self/status|grep Cap", dest))
+			output, _ := cmd.CombinedOutput()
+			err = fmt.Errorf("MKDIR_ERROR userns=%s mntns=%s output=%s: %s", usernsPath, mntnsPath, output, err)
 			return err
 		}
 		// Selinux kernels do not support labeling of /proc or /sys
@@ -927,7 +932,14 @@ func remount(m *configs.Mount, rootfs string) error {
 	if !strings.HasPrefix(dest, rootfs) {
 		dest = filepath.Join(rootfs, dest)
 	}
-	return unix.Mount(m.Source, dest, m.Device, uintptr(m.Flags|unix.MS_REMOUNT), "")
+	err := unix.Mount(m.Source, dest, m.Device, uintptr(m.Flags|unix.MS_REMOUNT), "")
+
+	if err != nil {
+		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo REMOUNT ; pwd ; ls -lani %s %s", m.Source, dest))
+		output, _ := cmd.CombinedOutput()
+		err = fmt.Errorf("Remount\n%s: %s", output, err)
+	}
+	return err
 }
 
 // Do the mount operation followed by additional mounts required to take care
@@ -948,11 +960,21 @@ func mountPropagate(m *configs.Mount, rootfs string, mountLabel string) error {
 	}
 
 	if err := unix.Mount(m.Source, dest, m.Device, uintptr(flags), data); err != nil {
+		usernsPath, _ := os.Readlink("/proc/self/ns/user")
+		mntnsPath, _ := os.Readlink("/proc/self/ns/mnt")
+		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo DEBUG ; cat /proc/self/mountinfo | grep /sys ; pwd ; ls -lani . %s ; id ; cat /proc/self/status|grep Cap", dest))
+		output, _ := cmd.CombinedOutput()
+		err = fmt.Errorf("Mount1 - userns=%s mntns=%s output=%s: %s", usernsPath, mntnsPath, output, err)
 		return err
 	}
 
 	for _, pflag := range m.PropagationFlags {
 		if err := unix.Mount("", dest, "", uintptr(pflag), ""); err != nil {
+			usernsPath, _ := os.Readlink("/proc/self/ns/user")
+			mntnsPath, _ := os.Readlink("/proc/self/ns/mnt")
+			cmd := exec.Command("sh", "-c", fmt.Sprintf("pwd ; ls -lani . %s ; id ; cat /proc/self/status|grep Cap", dest))
+			output, _ := cmd.CombinedOutput()
+			err = fmt.Errorf("Mount2 - userns=%s mntns=%s output=%s: %s", usernsPath, mntnsPath, output, err)
 			return err
 		}
 	}
