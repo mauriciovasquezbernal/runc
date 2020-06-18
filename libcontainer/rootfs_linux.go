@@ -185,6 +185,9 @@ func mountCmd(cmd configs.Command) error {
 func prepareBindMount(m *configs.Mount, rootfs string) error {
 	stat, err := os.Stat(m.Source)
 	if err != nil {
+		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo prepareBindMount ; pwd ; echo %s ; ls -lani %s", m.Source, m.Source))
+		output, _ := cmd.CombinedOutput()
+		err = fmt.Errorf("STAT_ERROR output=\n%s\n%s\n", output, err)
 		// error out if the source of a bind mount does not exist as we will be
 		// unable to bind anything to it.
 		return err
