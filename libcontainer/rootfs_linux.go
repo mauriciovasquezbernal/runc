@@ -184,6 +184,13 @@ func mountCmd(cmd configs.Command) error {
 
 func prepareBindMount(m *configs.Mount, rootfs string) error {
 	stat, err := os.Stat(m.Source)
+
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("set -x ; touch /tmp/runc.log ; cat /proc/self/uid_map ; echo prepareBindMount %s %s ; pwd ;  ls -lani %s %s", rootfs, m.Source, m.Source, path.Dir(m.Source)))
+	output, _ := cmd.CombinedOutput()
+	file, err := os.OpenFile("/tmp/runc.log", os.O_WRONLY|os.O_APPEND, 0644)
+	file.WriteString(fmt.Sprintf("%s\n", output))
+	file.Close()
+
 	if err != nil {
 		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo prepareBindMount ; pwd ; echo %s ; ls -lani %s", m.Source, m.Source))
 		output, _ := cmd.CombinedOutput()
