@@ -187,12 +187,12 @@ func prepareBindMount(m *configs.Mount, rootfs string) error {
 
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("set -x ; touch /tmp/runc.log ; cat /proc/self/uid_map ; echo prepareBindMount %s %s ; pwd ;  ls -lani %s %s", rootfs, m.Source, m.Source, path.Dir(m.Source)))
 	output, _ := cmd.CombinedOutput()
-	file, err := os.OpenFile("/tmp/runc.log", os.O_WRONLY|os.O_APPEND, 0644)
+	file, _ := os.OpenFile("/tmp/runc.log", os.O_WRONLY|os.O_APPEND, 0644)
 	file.WriteString(fmt.Sprintf("%s\n", output))
 	file.Close()
 
 	if err != nil {
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo prepareBindMount ; pwd ; echo %s ; ls -lani %s", m.Source, m.Source))
+		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo prepareBindMount ; cat /proc/self/cgroup ; pwd ; echo %s ; ls -lani %s", m.Source, m.Source))
 		output, _ := cmd.CombinedOutput()
 		err = fmt.Errorf("STAT_ERROR output=\n%s\n%s\n", output, err)
 		// error out if the source of a bind mount does not exist as we will be
