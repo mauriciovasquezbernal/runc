@@ -42,7 +42,7 @@ func needsSetupDev(config *configs.Config) bool {
 // prepareRootfs sets up the devices, mount points, and filesystems for use
 // inside a new mount namespace. It doesn't set anything as ro. You must call
 // finalizeRootfs after this function to finish setting up the rootfs.
-func prepareRootfs(pipe io.ReadWriter, iConfig *initConfig) (err error) {
+func prepareRootfs(pipe io.ReadWriter, iConfig *initConfig, mountFiles []*os.File) (err error) {
 	config := iConfig.Config
 	if err := prepareRoot(config); err != nil {
 		return newSystemErrorWithCause(err, "preparing rootfs")
@@ -50,13 +50,17 @@ func prepareRootfs(pipe io.ReadWriter, iConfig *initConfig) (err error) {
 
 	hasCgroupns := config.Namespaces.Contains(configs.NEWCGROUP)
 	setupDev := needsSetupDev(config)
-	for _, m := range config.Mounts {
+	for i, m := range config.Mounts {
 		for _, precmd := range m.PremountCmds {
 			if err := mountCmd(precmd); err != nil {
 				return newSystemErrorWithCause(err, "running premount command")
 			}
 		}
-		if err := mountToRootfs(m, config.Rootfs, config.MountLabel, hasCgroupns); err != nil {
+		var mountFile *os.File
+		if i < len(mountFiles) {
+			mountFile = mountFiles[i]
+		}
+		if err := mountToRootfs(m, config.Rootfs, config.MountLabel, hasCgroupns, mountFile); err != nil {
 			return newSystemErrorWithCausef(err, "mounting %q to rootfs at %q", m.Source, m.Destination)
 		}
 
@@ -242,7 +246,7 @@ func mountCgroupV1(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 		Data:             "mode=755",
 		PropagationFlags: m.PropagationFlags,
 	}
-	if err := mountToRootfs(tmpfs, rootfs, mountLabel, enableCgroupns); err != nil {
+	if err := mountToRootfs(tmpfs, rootfs, mountLabel, enableCgroupns, nil); err != nil {
 		return err
 	}
 	for _, b := range binds {
@@ -266,7 +270,7 @@ func mountCgroupV1(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 				return err
 			}
 		} else {
-			if err := mountToRootfs(b, rootfs, mountLabel, enableCgroupns); err != nil {
+			if err := mountToRootfs(b, rootfs, mountLabel, enableCgroupns, nil); err != nil {
 				return err
 			}
 		}
@@ -302,7 +306,7 @@ func mountCgroupV2(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 	return nil
 }
 
-func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns bool) error {
+func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns bool, mountFile *os.File) error {
 	var (
 		dest = m.Destination
 	)
@@ -328,12 +332,12 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 			return err
 		}
 		// Selinux kernels do not support labeling of /proc or /sys
-		return mountPropagate(m, rootfs, "")
+		return mountPropagate(m, rootfs, "", nil)
 	case "mqueue":
 		if err := os.MkdirAll(dest, 0755); err != nil {
 			return err
 		}
-		if err := mountPropagate(m, rootfs, ""); err != nil {
+		if err := mountPropagate(m, rootfs, "", nil); err != nil {
 			return err
 		}
 		return label.SetFileLabel(dest, mountLabel)
@@ -359,7 +363,7 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 			defer os.RemoveAll(tmpDir)
 			m.Destination = tmpDir
 		}
-		if err := mountPropagate(m, rootfs, mountLabel); err != nil {
+		if err := mountPropagate(m, rootfs, mountLabel, nil); err != nil {
 			return err
 		}
 		if copyUp {
@@ -388,7 +392,7 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 		if err := prepareBindMount(m, rootfs); err != nil {
 			return err
 		}
-		if err := mountPropagate(m, rootfs, mountLabel); err != nil {
+		if err := mountPropagate(m, rootfs, mountLabel, mountFile); err != nil {
 			return err
 		}
 		// bind mount won't change mount options, we need remount to make mount options effective.
@@ -431,7 +435,7 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 		if err := os.MkdirAll(dest, 0755); err != nil {
 			return err
 		}
-		return mountPropagate(m, rootfs, mountLabel)
+		return mountPropagate(m, rootfs, mountLabel, mountFile)
 	}
 	return nil
 }
@@ -947,7 +951,7 @@ func remount(m *configs.Mount, rootfs string) error {
 
 // Do the mount operation followed by additional mounts required to take care
 // of propagation flags.
-func mountPropagate(m *configs.Mount, rootfs string, mountLabel string) error {
+func mountPropagate(m *configs.Mount, rootfs string, mountLabel string, mountFile *os.File) error {
 	var (
 		dest  = m.Destination
 		data  = label.FormatMountLabel(m.Data, mountLabel)
@@ -962,7 +966,11 @@ func mountPropagate(m *configs.Mount, rootfs string, mountLabel string) error {
 		dest = filepath.Join(rootfs, dest)
 	}
 
-	if err := unix.Mount(m.Source, dest, m.Device, uintptr(flags), data); err != nil {
+	source := m.Source
+	if mountFile != nil {
+		source = fmt.Sprintf("/proc/self/fd/%d", int(mountFile.Fd()))
+	}
+	if err := unix.Mount(source, dest, m.Device, uintptr(flags), data); err != nil {
 		return err
 	}
 

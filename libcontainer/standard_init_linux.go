@@ -24,6 +24,7 @@ type linuxStandardInit struct {
 	consoleSocket *os.File
 	parentPid     int
 	fifoFd        int
+	mountFiles    []*os.File
 	config        *initConfig
 }
 
@@ -85,7 +86,7 @@ func (l *linuxStandardInit) Init() error {
 
 	// initialises the labeling system
 	selinux.GetEnabled()
-	if err := prepareRootfs(l.pipe, l.config); err != nil {
+	if err := prepareRootfs(l.pipe, l.config, l.mountFiles); err != nil {
 		return err
 	}
 	// Set up the console. This has to be done *before* we finalize the rootfs,

@@ -336,11 +336,13 @@ func (l *LinuxFactory) Type() string {
 // This is a low level implementation detail of the reexec and should not be consumed externally
 func (l *LinuxFactory) StartInitialization() (err error) {
 	var (
-		pipefd, fifofd int
-		consoleSocket  *os.File
-		envInitPipe    = os.Getenv("_LIBCONTAINER_INITPIPE")
-		envFifoFd      = os.Getenv("_LIBCONTAINER_FIFOFD")
-		envConsole     = os.Getenv("_LIBCONTAINER_CONSOLE")
+		pipefd, fifofd    int
+		mountFileCount    int
+		consoleSocket     *os.File
+		envInitPipe       = os.Getenv("_LIBCONTAINER_INITPIPE")
+		envFifoFd         = os.Getenv("_LIBCONTAINER_FIFOFD")
+		envConsole        = os.Getenv("_LIBCONTAINER_CONSOLE")
+		envMountFileCount = os.Getenv("_LIBCONTAINER_MOUNT_FILE_COUNT")
 	)
 
 	// Get the INITPIPE.
@@ -372,6 +374,29 @@ func (l *LinuxFactory) StartInitialization() (err error) {
 		defer consoleSocket.Close()
 	}
 
+	// Get the mount files (O_PATH)
+	mountFileCount, err = strconv.Atoi(envMountFileCount)
+	if err != nil {
+		return fmt.Errorf("unable to convert _LIBCONTAINER_MOUNT_FILE_COUNT=%s to int: %s",
+			envMountFileCount, err)
+	}
+	mountFiles := []*os.File{}
+	for i := 0; i < mountFileCount; i++ {
+		envMountFile := os.Getenv(fmt.Sprintf("_LIBCONTAINER_MOUNT_FILE_%d", i))
+		if envMountFile == "" {
+			mountFiles = append(mountFiles, nil)
+			continue
+		}
+		mountFileFd, err := strconv.Atoi(envMountFile)
+		if err != nil {
+			return fmt.Errorf("unable to convert _LIBCONTAINER_MOUNT_FILE_%d=%s to int: %s",
+				i, envMountFile, err)
+		}
+		mountFile := os.NewFile(uintptr(mountFileFd), "mount-file")
+		defer mountFile.Close()
+		mountFiles = append(mountFiles, mountFile)
+	}
+
 	// clear the current process's environment to clean any libcontainer
 	// specific env vars.
 	os.Clearenv()
@@ -394,7 +419,7 @@ func (l *LinuxFactory) StartInitialization() (err error) {
 		}
 	}()
 
-	i, err := newContainerInit(it, pipe, consoleSocket, fifofd)
+	i, err := newContainerInit(it, pipe, consoleSocket, fifofd, mountFiles)
 	if err != nil {
 		return err
 	}
