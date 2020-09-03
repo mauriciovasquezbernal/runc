@@ -522,6 +522,27 @@ func (c *linuxContainer) commandTemplate(p *Process, childInitPipe *os.File, chi
 	return cmd
 }
 
+// sendMountSources says whether the child process must setup bind mounts with
+// the source pre-opened (O_PATH) in the host user namespace.
+// See https://github.com/opencontainers/runc/issues/2484
+func (c *linuxContainer) sendMountSources() bool {
+	// Passing the mount sources via SCM_RIGHTS is only necessary when
+	// both userns and mntns are active.
+	if len(c.config.Mounts) == 0 {
+		return false
+	}
+	if !c.config.Namespaces.Contains(configs.NEWUSER) ||
+		!c.config.Namespaces.Contains(configs.NEWNS) {
+		return false
+	}
+	// nsexec.c send_mountsources() requires setns(mntns) capabilities
+	// CAP_SYS_CHROOT and CAP_SYS_ADMIN
+	if c.config.RootlessEUID {
+		return false
+	}
+	return true
+}
+
 func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, messageSockPair, logFilePair filePair) (*initProcess, error) {
 	cmd.Env = append(cmd.Env, "_LIBCONTAINER_INITTYPE="+string(initStandard))
 	nsMaps := make(map[configs.NamespaceType]string)
@@ -535,6 +556,28 @@ func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, messageSockPa
 	if err != nil {
 		return nil, err
 	}
+
+	if c.sendMountSources() {
+		mountFileFdsList := ""
+		for _, m := range c.config.Mounts {
+			if m.Device != "bind" {
+				// StartInitialization() finds out the Mounts indices by counting ";".
+				// We take care of adding the right number of ";"
+				mountFileFdsList += ";"
+				continue
+			}
+			// The fd passed here will not be used: nsexec.c will overwrite it with dup2(). We just need
+			// to allocate a fd so that we know the number to pass in the environment variable. The fd
+			// must not be closed before cmd.Start(), so we reuse messageSockPair.child because the
+			// lifecycle of that fd is already taken care of.
+			cmd.ExtraFiles = append(cmd.ExtraFiles, messageSockPair.child)
+			mountFileFdsList += fmt.Sprintf("%d;", stdioFdCount+len(cmd.ExtraFiles)-1)
+		}
+		cmd.Env = append(cmd.Env,
+			fmt.Sprintf("_LIBCONTAINER_MOUNT_FILE_FDS=%s", mountFileFdsList),
+		)
+	}
+
 	init := &initProcess{
 		cmd:             cmd,
 		messageSockPair: messageSockPair,
@@ -1157,7 +1200,9 @@ func (c *linuxContainer) makeCriuRestoreMountpoints(m *configs.Mount) error {
 	case "bind":
 		// The prepareBindMount() function checks if source
 		// exists. So it cannot be used for other filesystem types.
-		if err := prepareBindMount(m, c.config.Rootfs); err != nil {
+		// TODO: pass something else than nil? Not sure if criu is
+		// impacted by issue #2484
+		if err := prepareBindMount(m, c.config.Rootfs, nil); err != nil {
 			return err
 		}
 	default:
@@ -2039,6 +2084,22 @@ func (c *linuxContainer) bootstrapData(cloneFlags uintptr, nsMaps map[configs.Na
 		Type:  RootlessEUIDAttr,
 		Value: c.config.RootlessEUID,
 	})
+
+	// bind mount source to open
+	if c.sendMountSources() {
+		var mounts []byte
+		for _, m := range c.config.Mounts {
+			if m.Device == "bind" {
+				mounts = append(mounts, []byte(m.Source)...)
+			}
+			mounts = append(mounts, byte(0))
+		}
+
+		r.AddData(&Bytemsg{
+			Type:  MountSourcesAttr,
+			Value: mounts,
+		})
+	}
 
 	return bytes.NewReader(r.Serialize()), nil
 }
