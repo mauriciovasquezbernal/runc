@@ -971,7 +971,26 @@ func mountPropagate(m *configs.Mount, rootfs string, mountLabel string, mountFil
 		source = fmt.Sprintf("/proc/self/fd/%d", int(mountFile.Fd()))
 	}
 	if err := unix.Mount(source, dest, m.Device, uintptr(flags), data); err != nil {
-		return err
+
+		// Debug / Workaround
+		// https://github.com/torvalds/linux/blob/v5.8/fs/namespace.c#L2312
+		// bind mount function __do_loopback() uses:
+		// check_mnt(old): checks if the source file opened with O_PATH
+		// comes from the same mntns:
+		// mnt->mnt_ns == current->nsproxy->mnt_ns
+		fi, _ := mountFile.Stat()
+		fmt.Printf("failed to mount from file %+v\n", fi.Sys())
+
+		mountFile, _ := os.OpenFile(m.Source, unix.O_PATH, 0)
+		source = fmt.Sprintf("/proc/self/fd/%d", int(mountFile.Fd()))
+
+		fi, _ = mountFile.Stat()
+		fmt.Printf("Let's try this other file instead %+v\n", fi.Sys())
+
+		if err := unix.Mount(source, dest, m.Device, uintptr(flags), data); err != nil {
+			return err
+		}
+		//return err
 	}
 
 	for _, pflag := range m.PropagationFlags {

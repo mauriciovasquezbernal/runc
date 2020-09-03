@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
@@ -396,6 +397,14 @@ func (l *LinuxFactory) StartInitialization() (err error) {
 		defer mountFile.Close()
 		mountFiles = append(mountFiles, mountFile)
 	}
+	fmt.Printf("Debug mountFiles %+v\n", mountFiles)
+
+	cmd := exec.Command("/bin/sh", "-c", "ls -la /proc/self/fd")
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("errr = %s\n", err)
+	}
+	fmt.Printf("%s\n", stdoutStderr)
 
 	// clear the current process's environment to clean any libcontainer
 	// specific env vars.

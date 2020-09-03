@@ -553,11 +553,12 @@ func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, messageSockPa
 		if m.Device != "bind" {
 			continue
 		}
+		fmt.Printf("Debug mount %d: %v\n", i, m.Source)
 		mountFile, err := os.OpenFile(m.Source, unix.O_PATH, 0)
 		if err != nil {
 			return nil, err
 		}
-		defer mountFile.Close()
+		//defer mountFile.Close() // TODO: close after cmd.Start()
 		cmd.ExtraFiles = append(cmd.ExtraFiles, mountFile)
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("_LIBCONTAINER_MOUNT_FILE_%d=%d", i, stdioFdCount+len(cmd.ExtraFiles)-1),
@@ -566,6 +567,7 @@ func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, messageSockPa
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("_LIBCONTAINER_MOUNT_FILE_COUNT=%d", len(c.config.Mounts)),
 	)
+	fmt.Printf("Debug env %+v\n", cmd.Env)
 
 	init := &initProcess{
 		cmd:             cmd,
