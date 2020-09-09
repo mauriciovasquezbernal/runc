@@ -68,7 +68,7 @@ func (l *linuxSetnsInit) Init() error {
 	// do this before dropping capabilities; otherwise do it as late as possible
 	// just before execve so as few syscalls take place after it as possible.
 	if l.config.Config.Seccomp != nil && !l.config.NoNewPrivileges {
-		if err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
+		if _, err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
 			return err
 		}
 	}
@@ -82,8 +82,14 @@ func (l *linuxSetnsInit) Init() error {
 	// place afterward (reducing the amount of syscalls that users need to
 	// enable in their seccomp profiles).
 	if l.config.Config.Seccomp != nil && l.config.NoNewPrivileges {
-		if err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
+		if seccompFd, err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
 			return newSystemErrorWithCause(err, "init seccomp")
+		} else {
+			if seccompFd != -1 {
+				if err := syncParentSeccompHooks(l.pipe, int(seccompFd)); err != nil {
+					return errors.Wrap(err, "seccomp hooks")
+				}
+			}
 		}
 	}
 	return system.Execv(l.config.Args[0], l.config.Args[0:], os.Environ())

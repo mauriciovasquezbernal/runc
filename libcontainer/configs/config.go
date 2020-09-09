@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -45,6 +46,7 @@ const (
 	Allow
 	Trace
 	Log
+	Notify
 )
 
 // Operator is a comparison operator to be used when matching syscall arguments in Seccomp
@@ -223,6 +225,9 @@ const (
 	// CreateRuntime commands are called in the Runtime Namespace.
 	CreateRuntime = "createRuntime"
 
+	// SendSeccompFd hook.
+	SendSeccompFd = "sendSeccompFd"
+
 	// CreateContainer commands MUST be called as part of the create operation after
 	// the runtime environment has been created but before the pivot_root has been executed.
 	// CreateContainer commands are called in the Container namespace.
@@ -304,6 +309,7 @@ func (hooks *Hooks) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"prestart":        serialize((*hooks)[Prestart]),
 		"createRuntime":   serialize((*hooks)[CreateRuntime]),
+		"sendSeccompFd":   serialize((*hooks)[SendSeccompFd]),
 		"createContainer": serialize((*hooks)[CreateContainer]),
 		"startContainer":  serialize((*hooks)[StartContainer]),
 		"poststart":       serialize((*hooks)[Poststart]),
@@ -363,6 +369,17 @@ func (c Command) Run(s *specs.State) error {
 		Stdin:  bytes.NewReader(b),
 		Stdout: &stdout,
 		Stderr: &stderr,
+	}
+	if s.SeccompFd != 0 {
+		cmd.ExtraFiles = []*os.File{os.NewFile(uintptr(s.SeccompFd), "seccomp-fd")}
+		/*
+			s.SeccompFd = 3
+			b, err := json.Marshal(s)
+			if err != nil {
+				return err
+			}
+			cmd.Stdin = bytes.NewReader(b)
+		*/
 	}
 	if err := cmd.Start(); err != nil {
 		return err

@@ -140,12 +140,6 @@ func (l *linuxStandardInit) Init() error {
 			return errors.Wrap(err, "set nonewprivileges")
 		}
 	}
-	// Tell our parent that we're ready to Execv. This must be done before the
-	// Seccomp rules have been applied, because we need to be able to read and
-	// write to a socket.
-	if err := syncParentReady(l.pipe); err != nil {
-		return errors.Wrap(err, "sync ready")
-	}
 	if err := selinux.SetExecLabel(l.config.ProcessLabel); err != nil {
 		return errors.Wrap(err, "set process label")
 	}
@@ -154,9 +148,21 @@ func (l *linuxStandardInit) Init() error {
 	// do this before dropping capabilities; otherwise do it as late as possible
 	// just before execve so as few syscalls take place after it as possible.
 	if l.config.Config.Seccomp != nil && !l.config.NoNewPrivileges {
-		if err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
+		if seccompFd, err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
 			return err
+		} else {
+			if seccompFd != -1 {
+				if err := syncParentSeccompHooks(l.pipe, int(seccompFd)); err != nil {
+					return errors.Wrap(err, "seccomp hooks")
+				}
+			}
 		}
+	}
+	// Tell our parent that we're ready to Execv. This must be done before the
+	// Seccomp rules have been applied, because we need to be able to read and
+	// write to a socket.
+	if err := syncParentReady(l.pipe); err != nil {
+		return errors.Wrap(err, "sync ready")
 	}
 	if err := finalizeNamespace(l.config); err != nil {
 		return err
@@ -203,8 +209,14 @@ func (l *linuxStandardInit) Init() error {
 	// place afterward (reducing the amount of syscalls that users need to
 	// enable in their seccomp profiles).
 	if l.config.Config.Seccomp != nil && l.config.NoNewPrivileges {
-		if err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
+		if seccompFd, err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
 			return newSystemErrorWithCause(err, "init seccomp")
+		} else {
+			if seccompFd != -1 {
+				if err := syncParentSeccompHooks(l.pipe, int(seccompFd)); err != nil {
+					return errors.Wrap(err, "seccomp hooks")
+				}
+			}
 		}
 	}
 
