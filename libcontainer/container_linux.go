@@ -483,6 +483,11 @@ func (c *linuxContainer) commandTemplate(p *Process, childInitPipe *os.File, chi
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
+
+	// FIXME: Ensure the child process gets access to the right libseccomp.
+	// sudo LD_PRELOAD=/home/alban/go/src/github.com/seccomp/libseccomp/src/.libs/libseccomp.so.2.5.0 ../runc run mycontainer1
+	cmd.Env = append(cmd.Env, fmt.Sprintf("LD_PRELOAD=%s", os.Getenv("LD_PRELOAD")))
+
 	cmd.Env = append(cmd.Env, fmt.Sprintf("GOMAXPROCS=%s", os.Getenv("GOMAXPROCS")))
 	cmd.ExtraFiles = append(cmd.ExtraFiles, p.ExtraFiles...)
 	if p.ConsoleSocket != nil {
