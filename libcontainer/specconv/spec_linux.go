@@ -915,6 +915,10 @@ func createHooks(rspec *specs.Spec, config *configs.Config) {
 			cmd := createCommandHook(h)
 			config.Hooks[configs.CreateRuntime] = append(config.Hooks[configs.CreateRuntime], configs.NewCommandHook(cmd))
 		}
+		for _, h := range rspec.Hooks.SendSeccompFd {
+			cmd := createCommandHook(h)
+			config.Hooks[configs.SendSeccompFd] = append(config.Hooks[configs.SendSeccompFd], configs.NewCommandHook(cmd))
+		}
 		for _, h := range rspec.Hooks.CreateContainer {
 			cmd := createCommandHook(h)
 			config.Hooks[configs.CreateContainer] = append(config.Hooks[configs.CreateContainer], configs.NewCommandHook(cmd))

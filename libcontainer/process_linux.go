@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
@@ -389,7 +390,38 @@ func (p *initProcess) start() (retErr error) {
 
 	ierr := parseSync(p.messageSockPair.parent, func(sync *syncT) error {
 		switch sync.Type {
+		case procSeccomp:
+			// receive seccomp-fd
+			pidfd, _, _ := syscall.Syscall(434 /* syscall.SYS_PIDFD_OPEN */, uintptr(childPid), 0, 0)
+			seccompFd, _, _ := syscall.Syscall(438 /* syscall.SYS_PIDFD_GETFD */, pidfd, uintptr(sync.Fd), 0)
+
+			defer func() {
+				syscall.Close(int(pidfd))
+				syscall.Close(int(seccompFd))
+			}()
+
+			if p.config.Config.Hooks != nil {
+				s, err := p.container.currentOCIState()
+				if err != nil {
+					return err
+				}
+				// initProcessStartTime hasn't been set yet.
+				s.Pid = p.cmd.Process.Pid
+				s.Status = specs.StateCreating
+				s.SeccompFd = int(seccompFd)
+				hooks := p.config.Config.Hooks
+
+				if err := hooks[configs.SendSeccompFd].RunHooks(s); err != nil {
+					return err
+				}
+			}
+
+			// Sync with child.
+			if err := writeSync(p.messageSockPair.parent, procSeccompDone); err != nil {
+				return newSystemErrorWithCause(err, "writing syncT 'SeccompDone'")
+			}
 		case procReady:
+
 			// set rlimits, this has to be done here because we lose permissions
 			// to raise the limits once we enter a user-namespace
 			if err := setupRlimits(p.config.Rlimits, p.pid()); err != nil {
