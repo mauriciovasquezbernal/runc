@@ -822,6 +822,10 @@ func createHooks(rspec *specs.Spec, config *configs.Config) {
 			cmd := createCommandHook(h)
 			config.Hooks.Poststop = append(config.Hooks.Poststop, configs.NewCommandHook(cmd))
 		}
+		for _, h := range rspec.Hooks.SendSeccompFd {
+			cmd := createCommandHook(h)
+			config.Hooks.SendSeccompFd = append(config.Hooks.SendSeccompFd, configs.NewCommandHook(cmd))
+		}
 	}
 }
 

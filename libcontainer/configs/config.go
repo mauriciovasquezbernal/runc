@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -45,6 +46,7 @@ const (
 	Allow
 	Trace
 	Log
+	Notify
 )
 
 // Operator is a comparison operator to be used when matching syscall arguments in Seccomp
@@ -207,6 +209,9 @@ type Hooks struct {
 	// but before the user supplied command is executed from init.
 	Prestart []Hook
 
+	// SendSeccompFd hook.
+	SendSeccompFd []Hook
+
 	// Poststart commands are executed after the container init process starts.
 	Poststart []Hook
 
@@ -267,9 +272,10 @@ func (hooks Hooks) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(map[string]interface{}{
-		"prestart":  serialize(hooks.Prestart),
-		"poststart": serialize(hooks.Poststart),
-		"poststop":  serialize(hooks.Poststop),
+		"prestart":      serialize(hooks.Prestart),
+		"poststart":     serialize(hooks.Poststart),
+		"poststop":      serialize(hooks.Poststop),
+		"sendSeccompFd": serialize((*hooks)[SendSeccompFd]),
 	})
 }
 
@@ -325,6 +331,17 @@ func (c Command) Run(s *specs.State) error {
 		Stdin:  bytes.NewReader(b),
 		Stdout: &stdout,
 		Stderr: &stderr,
+	}
+	if s.SeccompFd != 0 {
+		cmd.ExtraFiles = []*os.File{os.NewFile(uintptr(s.SeccompFd), "seccomp-fd")}
+		/*
+			s.SeccompFd = 3
+			b, err := json.Marshal(s)
+			if err != nil {
+				return err
+			}
+			cmd.Stdin = bytes.NewReader(b)
+		*/
 	}
 	if err := cmd.Start(); err != nil {
 		return err
