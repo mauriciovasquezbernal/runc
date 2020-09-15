@@ -33,12 +33,18 @@ SHELL := $(shell command -v bash 2>/dev/null)
 runc: $(SOURCES)
 	$(GO) build -buildmode=pie $(EXTRA_FLAGS) -ldflags "-X main.gitCommit=${COMMIT} -X main.version=${VERSION} $(EXTRA_LDFLAGS)" -tags "$(BUILDTAGS)" -o runc .
 
-all: runc recvtty
+all: runc recvtty seccomphook seccompagent
 
 recvtty: contrib/cmd/recvtty/recvtty
 
 contrib/cmd/recvtty/recvtty: $(SOURCES)
 	$(GO) build -buildmode=pie $(EXTRA_FLAGS) -ldflags "-X main.gitCommit=${COMMIT} -X main.version=${VERSION} $(EXTRA_LDFLAGS)" -tags "$(BUILDTAGS)" -o contrib/cmd/recvtty/recvtty ./contrib/cmd/recvtty
+
+seccomphook:
+	$(GO_BUILD) -o contrib/cmd/seccomphook/seccomphook ./contrib/cmd/seccomphook
+
+seccompagent:
+	$(GO_BUILD) -o contrib/cmd/seccompagent/seccompagent ./contrib/cmd/seccompagent
 
 static: $(SOURCES)
 	CGO_ENABLED=1 $(GO) build $(EXTRA_FLAGS) -tags "$(BUILDTAGS) netgo osusergo" -installsuffix netgo -ldflags "-w -extldflags -static -X main.gitCommit=${COMMIT} -X main.version=${VERSION} $(EXTRA_LDFLAGS)" -o runc .
