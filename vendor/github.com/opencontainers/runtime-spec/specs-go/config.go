@@ -127,6 +127,18 @@ type Hook struct {
 type Hooks struct {
 	// Prestart is a list of hooks to be run before the container process is executed.
 	Prestart []Hook `json:"prestart,omitempty"`
+	// CreateRuntime is a list of hooks to be run after the container has been created but before pivot_root or any equivalent operation has been called
+	// It is called in the Runtime Namespace
+	CreateRuntime []Hook `json:"createRuntime,omitempty"`
+	// SendSeccompFd is a list of hooks to be run after a new seccomp fd is created
+	// It is called in the Runtime Namespace
+	SendSeccompFd []Hook `json:"sendSeccompFd,omitempty"`
+	// CreateContainer is a list of hooks to be run after the container has been created but before pivot_root or any equivalent operation has been called
+	// It is called in the Container Namespace
+	CreateContainer []Hook `json:"createContainer,omitempty"`
+	// StartContainer is a list of hooks to be run after the start operation is called but before the container process is started
+	// It is called in the Container Namespace
+	StartContainer []Hook `json:"startContainer,omitempty"`
 	// Poststart is a list of hooks to be run after the container process is started.
 	Poststart []Hook `json:"poststart,omitempty"`
 	// Poststop is a list of hooks to be run after the container process exits.
