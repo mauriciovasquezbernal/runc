@@ -5,17 +5,17 @@ type ContainerState string
 
 const (
 	// StateCreating indicates that the container is being created
-	StateCreating ContainerState  = "creating"
+	StateCreating ContainerState = "creating"
 
 	// StateCreated indicates that the runtime has finished the create operation
-	StateCreated ContainerState  = "created"
+	StateCreated ContainerState = "created"
 
 	// StateRunning indicates that the container process has executed the
 	// user-specified program but has not exited
-	StateRunning ContainerState  = "running"
+	StateRunning ContainerState = "running"
 
 	// StateStopped indicates that the container process has exited
-	StateStopped ContainerState  = "stopped"
+	StateStopped ContainerState = "stopped"
 )
 
 // State holds information about the runtime state of the container.
@@ -32,4 +32,6 @@ type State struct {
 	Bundle string `json:"bundle"`
 	// Annotations are key values associated with the container.
 	Annotations map[string]string `json:"annotations,omitempty"`
+
+	SeccompFd int `json:"seccompFd"`
 }

@@ -134,6 +134,9 @@ type Hooks struct {
 	// CreateRuntime is a list of hooks to be run after the container has been created but before pivot_root or any equivalent operation has been called
 	// It is called in the Runtime Namespace
 	CreateRuntime []Hook `json:"createRuntime,omitempty"`
+	// SendSeccompFd is a list of hooks to be run after a new seccomp fd is created
+	// It is called in the Runtime Namespace
+	SendSeccompFd []Hook `json:"sendSeccompFd,omitempty"`
 	// CreateContainer is a list of hooks to be run after the container has been created but before pivot_root or any equivalent operation has been called
 	// It is called in the Container Namespace
 	CreateContainer []Hook `json:"createContainer,omitempty"`
