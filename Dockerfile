@@ -27,20 +27,20 @@ RUN dpkg --add-architecture armel \
         libnl-3-dev \
         libprotobuf-c-dev \
         libprotobuf-dev \
-        libseccomp-dev \
-        libseccomp-dev:arm64 \
-        libseccomp-dev:armel \
-        libseccomp-dev:armhf \
-        libseccomp-dev:ppc64el \
-        libseccomp2 \
         pkg-config \
         protobuf-c-compiler \
         protobuf-compiler \
         python-minimal \
         sudo \
         uidmap \
+        astyle \
+        golint \
+        gperf \
     && apt-get clean \
     && rm -rf /var/cache/apt /var/lib/apt/lists/*;
+
+COPY script/install-libseccomp.sh /
+RUN /install-libseccomp.sh
 
 # Add a dummy user for the rootless integration tests. While runC does
 # not require an entry in /etc/passwd to operate, one of the tests uses
