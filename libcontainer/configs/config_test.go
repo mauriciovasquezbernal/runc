@@ -67,6 +67,7 @@ func TestMarshalHooks(t *testing.T) {
 		configs.StartContainer:  configs.HookList{hookCmd},
 		configs.Poststart:       configs.HookList{hookCmd},
 		configs.Poststop:        configs.HookList{hookCmd},
+		configs.SendSeccompFd:   configs.HookList{hookCmd},
 	}
 	hooks, err := hook.MarshalJSON()
 	if err != nil {
@@ -127,7 +128,7 @@ func TestMarshalHooksWithUnexpectedType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := `{"createContainer":null,"createRuntime":null,"poststart":null,"poststop":null,"prestart":null,"startContainer":null}`
+	h := `{"createContainer":null,"createRuntime":null,"poststart":null,"poststop":null,"prestart":null,"sendSeccompFd":null,"startContainer":null}`
 	if string(hooks) != h {
 		t.Errorf("Expected hooks %s to equal %s", string(hooks), h)
 	}
