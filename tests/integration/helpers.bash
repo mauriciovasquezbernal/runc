@@ -8,6 +8,8 @@ INTEGRATION_ROOT=$(dirname "$(readlink -f "$BASH_SOURCE")")
 RUNC="${INTEGRATION_ROOT}/../../runc"
 RECVTTY="${INTEGRATION_ROOT}/../../contrib/cmd/recvtty/recvtty"
 GOPATH="$(mktemp -d --tmpdir runc-integration-gopath.XXXXXX)"
+SECCOMPHOOK=$(readlink -f "${INTEGRATION_ROOT}/../../contrib/cmd/seccomphook/seccomphook")
+SECCOMPAGENT="${INTEGRATION_ROOT}/../../contrib/cmd/seccompagent/seccompagent"
 
 # Test data path.
 TESTDATA="${INTEGRATION_ROOT}/testdata"
@@ -419,6 +421,18 @@ function teardown_recvtty() {
 	# Clean up the files that might be left over.
 	rm -f "$BATS_TMPDIR/recvtty.pid"
 	rm -f "$CONSOLE_SOCKET"
+}
+
+function setup_seccompagent() {
+	"$SECCOMPAGENT" &2> /dev/null
+	echo $! > "$BATS_TMPDIR/seccompagent.pid"
+}
+
+function teardown_seccompagent() {
+	if [ -f "$BATS_TMPDIR/seccompagent.pid" ]; then
+		kill -9 $(cat "$BATS_TMPDIR/seccompagent.pid")
+	fi
+	rm -f "$BATS_TMPDIR/seccompagent.pid"
 }
 
 function setup_busybox() {
