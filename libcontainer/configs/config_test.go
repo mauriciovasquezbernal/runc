@@ -220,6 +220,62 @@ exit 0
 	testCommandHookRun(t, state, verifyCommand)
 }
 
+func TestCommandHookSendSeccompFdRun(t *testing.T) {
+	seccompState := &specs.SeccompState{
+		Version:   "1",
+		Pid:       4455,
+		SeccompFd: 3,
+		State: specs.State{
+			Version: "1",
+			ID:      "1",
+			Status:  "created",
+			Pid:     1,
+			Bundle:  "/bundle",
+		},
+	}
+
+	file, err := os.Open("/dev/null")
+	if err != nil {
+		t.Fatalf("error opening /dev/null: %v", err)
+	}
+	defer file.Close()
+
+	seccompStateJson, errJ := json.Marshal(seccompState)
+	if errJ != nil {
+		t.Fatal(errJ)
+	}
+
+	// CommandHook.Run() always sets SeccompFd to 3. Set to this new fd after
+	// marshalling the json to be able to compare the jsons in the bash script.
+	seccompState.SeccompFd = int(file.Fd())
+
+	verifyCommandTemplate := `#!/bin/sh
+if [ "$1" != "testarg" ]; then
+	echo "Bad value for $1. Expected 'testarg', found '$1'"
+	exit 1
+fi
+if [ -z "$FOO" ] || [ "$FOO" != BAR ]; then
+	echo "Bad value for FOO. Expected 'BAR', found '$FOO'"
+	exit 1
+fi
+expectedJson=%q
+read JSON
+if [ "$JSON" != "$expectedJson" ]; then
+	echo "Bad JSON received. Expected '$expectedJson', found '$JSON'"
+	exit 1
+fi
+file=$(readlink /proc/self/fd/3)
+if [ "$file" != "/dev/null" ]; then
+	echo "Bad value for /proc/self/fd/3. Expected '/dev/null', found '$file'"
+	exit 1
+fi
+exit 0`
+
+	verifyCommand := fmt.Sprintf(verifyCommandTemplate, seccompStateJson)
+
+	testCommandHookRun(t, seccompState, verifyCommand)
+}
+
 func TestCommandHookRunTimeout(t *testing.T) {
 	state := &specs.State{
 		Version: "1",
