@@ -15,7 +15,7 @@ mkdir rootfs
 docker export $(docker create busybox) | tar -C rootfs -xvf -
 ```
 
-Edit config.json to add a seccomp profile and some commands:
+Edit config.json to add a seccomp profile, some commands and the sendSecompFd hook.
 ```json
 {
   "ociVersion": "1.0.2-dev",
@@ -44,6 +44,16 @@ Edit config.json to add a seccomp profile and some commands:
         }
       ]
     }
+  },
+  "hooks": {
+    "sendSeccompFd": [
+      {
+        "path": "/tmp/seccomphook",
+        "args": [
+          "seccomphook"
+        ]
+      }
+    ]
   }
 }
 ```
@@ -51,6 +61,11 @@ Edit config.json to add a seccomp profile and some commands:
 Run the seccomp agent in the background:
 ```bash
 sudo ./contrib/cmd/seccompagent/seccompagent &
+```
+
+Install the seccomphook to `/tmp`:
+```bash
+cp ./contrib/cmd/seccomphook/seccomphook /tmp/seccomphook
 ```
 
 Start the container:
