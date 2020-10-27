@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
@@ -163,12 +162,17 @@ func (p *setnsProcess) start() (retErr error) {
 			panic("unexpected procHooks in setns")
 		case procSeccomp:
 			// receive seccomp-fd
-			pidfd, _, _ := syscall.Syscall(434 /* syscall.SYS_PIDFD_OPEN */, uintptr(p.pid()), 0, 0)
-			seccompFd, _, _ := syscall.Syscall(438 /* syscall.SYS_PIDFD_GETFD */, pidfd, uintptr(sync.Fd), 0)
-
+			pidfd, _, err := unix.Syscall(unix.SYS_PIDFD_OPEN, uintptr(p.pid()), 0, 0)
+			if err != 0 {
+				return fmt.Errorf("error performing SYS_PIDFD_OPEN syscall: %v", err)
+			}
+			seccompFd, _, err := unix.Syscall(unix.SYS_PIDFD_GETFD, pidfd, uintptr(sync.Fd), 0)
+			if err != 0 {
+				return fmt.Errorf("error performing SYS_PIDFD_GETFD syscall: %v", err)
+			}
 			defer func() {
-				syscall.Close(int(pidfd))
-				syscall.Close(int(seccompFd))
+				unix.Close(int(pidfd))
+				unix.Close(int(seccompFd))
 			}()
 
 			if p.config.Config.Hooks != nil {
@@ -433,12 +437,18 @@ func (p *initProcess) start() (retErr error) {
 		switch sync.Type {
 		case procSeccomp:
 			// receive seccomp-fd
-			pidfd, _, _ := syscall.Syscall(434 /* syscall.SYS_PIDFD_OPEN */, uintptr(childPid), 0, 0)
-			seccompFd, _, _ := syscall.Syscall(438 /* syscall.SYS_PIDFD_GETFD */, pidfd, uintptr(sync.Fd), 0)
+			pidfd, _, err := unix.Syscall(unix.SYS_PIDFD_OPEN, uintptr(childPid), 0, 0)
+			if err != 0 {
+				return fmt.Errorf("error performing SYS_PIDFD_OPEN syscall: %v", err)
+			}
+			seccompFd, _, err := unix.Syscall(unix.SYS_PIDFD_GETFD, pidfd, uintptr(sync.Fd), 0)
+			if err != 0 {
+				return fmt.Errorf("error performing SYS_PIDFD_GETFD syscall: %v", err)
+			}
 
 			defer func() {
-				syscall.Close(int(pidfd))
-				syscall.Close(int(seccompFd))
+				unix.Close(int(pidfd))
+				unix.Close(int(seccompFd))
 			}()
 
 			if p.config.Config.Hooks != nil {
