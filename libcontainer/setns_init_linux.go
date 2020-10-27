@@ -73,7 +73,7 @@ func (l *linuxSetnsInit) Init() error {
 			return err
 		}
 		if seccompFd != -1 {
-			if err := syncParentSeccompHooks(l.pipe, int(seccompFd)); err != nil {
+			if err := syncParentSeccompHooks(l.pipe, seccompFd); err != nil {
 				return errors.Wrap(err, "seccomp hooks")
 			}
 		}
@@ -93,7 +93,7 @@ func (l *linuxSetnsInit) Init() error {
 			return newSystemErrorWithCause(err, "init seccomp")
 		}
 		if seccompFd != -1 {
-			if err := syncParentSeccompHooks(l.pipe, int(seccompFd)); err != nil {
+			if err := syncParentSeccompHooks(l.pipe, seccompFd); err != nil {
 				return errors.Wrap(err, "seccomp hooks")
 			}
 		}

@@ -34,7 +34,7 @@ const (
 // Started in the container init process, and carried over to all child processes
 // Setns calls, however, require a separate invocation, as they are not children
 // of the init until they join the namespace
-func InitSeccomp(config *configs.Seccomp) (libseccomp.ScmpFd, error) {
+func InitSeccomp(config *configs.Seccomp) (int, error) {
 	if config == nil {
 		return -1, errors.New("cannot initialize Seccomp - nil config passed")
 	}
@@ -111,7 +111,7 @@ func InitSeccomp(config *configs.Seccomp) (libseccomp.ScmpFd, error) {
 		if err != nil {
 			return -1, fmt.Errorf("error getting seccomp notify fd: %s", err)
 		}
-		return seccompFd, nil
+		return int(seccompFd), nil
 	}
 }
 
