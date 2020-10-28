@@ -56,7 +56,8 @@ func main() {
 	}
 	defer socket.Close()
 
-	err = utils.SendFd(socket, string(stateBuf), uintptr(3 /* ociState.SeccompFd */))
+	// Send fd to agent using SCM_RIGHTS
+	err = utils.SendFd(socket, string(stateBuf), uintptr(seccompState.SeccompFd))
 	if err != nil {
 		panic(fmt.Errorf("cannot send seccomp fd to %s: %v\n", socketFile, err))
 	}

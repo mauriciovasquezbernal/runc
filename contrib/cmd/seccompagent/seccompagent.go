@@ -49,7 +49,6 @@ func handleNewMessage(sockfd int) (*os.File, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse OCI state: %v\n", err)
 	}
-	fmt.Printf("%v\n", seccompState)
 
 	scms, err := unix.ParseSocketControlMessage(oob)
 	if err != nil {
@@ -91,6 +90,7 @@ func readArgString(pid uint32, offset int64) (string, error) {
 	return string(s), nil
 }
 
+// runMkdirForContainer runs mkdir on behalf of the container appending "-boo" to the dir path
 func runMkdirForContainer(pid uint32, fileName string, mode uint32) error {
 	if strings.HasPrefix(fileName, "/") {
 		err := syscall.Mkdir(fmt.Sprintf("/proc/%d/root%s-boo", pid, fileName), mode)
@@ -113,12 +113,12 @@ func notifHandler(fd libseccomp.ScmpFd) {
 		req, err := libseccomp.NotifReceive(fd)
 		if err != nil {
 			fmt.Printf("Error in NotifReceive(): %s", err)
-			return
+			continue
 		}
 		syscallName, err := req.Data.Syscall.GetName()
 		if err != nil {
 			fmt.Printf("Error in decoding syscall %v(): %s", req.Data.Syscall, err)
-			return
+			continue
 		}
 		fmt.Printf("Received syscall %q, pid %v, arch %q, args %+v\n", syscallName, req.Pid, req.Data.Arch, req.Data.Args)
 
@@ -140,9 +140,9 @@ func notifHandler(fd libseccomp.ScmpFd) {
 			fileName, err := readArgString(req.Pid, int64(req.Data.Args[0]))
 			if err != nil {
 				fmt.Printf("Cannot read argument: %s", err)
-			} else {
-				fmt.Printf("mkdir: %q\n", fileName)
+				break
 			}
+			fmt.Printf("mkdir: %q\n", fileName)
 			err = runMkdirForContainer(req.Pid, fileName, uint32(req.Data.Args[1]))
 			if err != nil {
 				resp.Error = int32(syscall.ENOSYS)
@@ -157,7 +157,6 @@ func notifHandler(fd libseccomp.ScmpFd) {
 
 		if err = libseccomp.NotifRespond(fd, resp); err != nil {
 			fmt.Printf("Error in notification response: %s", err)
-			return
 		}
 	}
 }
@@ -174,6 +173,7 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Println("Waiting for seccomp fds...")
 	l, err := net.Listen("unix", socketFile)
 	if err != nil {
 		panic(fmt.Errorf("cannot listen on %s: %s", socketFile, err))
