@@ -176,23 +176,22 @@ func (p *setnsProcess) start() (retErr error) {
 			}()
 
 			if p.config.Config.Hooks != nil {
-				s := &specs.State{}
-				// initProcessStartTime hasn't been set yet.
-				s.Version = specs.Version
-				s.ID = "TODO" // TODO
-				s.Status = specs.StateRunning
-				s.Pid = -1         // TODO
-				s.Bundle = "/TODO" // TODO
-				s.Status = specs.StateRunning
-				s.Annotations = map[string]string{} // TODO
-
-				seccompState := &specs.SeccompState{}
-				seccompState.Version = s.Version
-				seccompState.Phase = specs.SeccompPhaseStart
-				seccompState.SeccompFd = int(seccompFd)
-				seccompState.Pid = p.cmd.Process.Pid
-				seccompState.PidFd = -1 // TODO
-				seccompState.State = *s
+				bundle, annotations := utils.Annotations(p.config.Config.Labels)
+				seccompState := &specs.SeccompState{
+					Version:   specs.Version,
+					Phase:     specs.SeccompPhaseExec,
+					SeccompFd: int(seccompFd),
+					Pid:       p.cmd.Process.Pid,
+					PidFd:     -1, // TODO
+					State: specs.State{
+						Version:     specs.Version,
+						ID:          p.config.ContainerId,
+						Status:      specs.StateRunning,
+						Pid:         p.initProcessPid,
+						Bundle:      bundle,
+						Annotations: annotations,
+					},
+				}
 
 				hooks := p.config.Config.Hooks
 				if err := hooks[configs.SendSeccompFd].RunHooks(seccompState); err != nil {
@@ -455,18 +454,17 @@ func (p *initProcess) start() (retErr error) {
 				if err != nil {
 					return err
 				}
-
 				// initProcessStartTime hasn't been set yet.
 				s.Pid = p.cmd.Process.Pid
 				s.Status = specs.StateCreating
-
-				seccompState := &specs.SeccompState{}
-				seccompState.Version = s.Version
-				seccompState.Phase = specs.SeccompPhaseStart
-				seccompState.SeccompFd = int(seccompFd)
-				seccompState.Pid = s.Pid
-				seccompState.PidFd = -1 // TODO
-				seccompState.State = *s
+				seccompState := &specs.SeccompState{
+					Version:   specs.Version,
+					Phase:     specs.SeccompPhaseStart,
+					SeccompFd: int(seccompFd),
+					Pid:       s.Pid,
+					PidFd:     -1,
+					State:     *s,
+				}
 
 				hooks := p.config.Config.Hooks
 				if err := hooks[configs.SendSeccompFd].RunHooks(seccompState); err != nil {
