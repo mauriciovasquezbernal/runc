@@ -166,23 +166,21 @@ func (p *setnsProcess) start() (retErr error) {
 			if err != 0 {
 				return fmt.Errorf("error performing SYS_PIDFD_OPEN syscall: %v", err)
 			}
+			defer unix.Close(int(pidfd))
+
 			seccompFd, _, err := unix.Syscall(unix.SYS_PIDFD_GETFD, pidfd, uintptr(sync.Fd), 0)
 			if err != 0 {
 				return fmt.Errorf("error performing SYS_PIDFD_GETFD syscall: %v", err)
 			}
-			defer func() {
-				unix.Close(int(pidfd))
-				unix.Close(int(seccompFd))
-			}()
+			defer unix.Close(int(seccompFd))
 
 			if p.config.Config.Hooks != nil {
 				bundle, annotations := utils.Annotations(p.config.Config.Labels)
 				seccompState := &specs.SeccompState{
 					Version:   specs.Version,
-					Phase:     specs.SeccompPhaseExec,
 					SeccompFd: int(seccompFd),
 					Pid:       p.cmd.Process.Pid,
-					PidFd:     -1, // TODO
+					PidFd:     int(pidfd),
 					State: specs.State{
 						Version:     specs.Version,
 						ID:          p.config.ContainerId,
@@ -439,15 +437,13 @@ func (p *initProcess) start() (retErr error) {
 			if err != 0 {
 				return fmt.Errorf("error performing SYS_PIDFD_OPEN syscall: %v", err)
 			}
+			defer unix.Close(int(pidfd))
+
 			seccompFd, _, err := unix.Syscall(unix.SYS_PIDFD_GETFD, pidfd, uintptr(sync.Fd), 0)
 			if err != 0 {
 				return fmt.Errorf("error performing SYS_PIDFD_GETFD syscall: %v", err)
 			}
-
-			defer func() {
-				unix.Close(int(pidfd))
-				unix.Close(int(seccompFd))
-			}()
+			defer unix.Close(int(seccompFd))
 
 			if p.config.Config.Hooks != nil {
 				s, err := p.container.currentOCIState()
@@ -459,10 +455,9 @@ func (p *initProcess) start() (retErr error) {
 				s.Status = specs.StateCreating
 				seccompState := &specs.SeccompState{
 					Version:   specs.Version,
-					Phase:     specs.SeccompPhaseStart,
 					SeccompFd: int(seccompFd),
 					Pid:       s.Pid,
-					PidFd:     -1,
+					PidFd:     int(pidfd),
 					State:     *s,
 				}
 
