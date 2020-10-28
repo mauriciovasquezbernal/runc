@@ -47,6 +47,8 @@ seccompagent:
 static:
 	$(GO_BUILD_STATIC) -o runc .
 	$(GO_BUILD_STATIC) -o contrib/cmd/recvtty/recvtty ./contrib/cmd/recvtty
+	$(GO_BUILD_STATIC) -o contrib/cmd/seccompagent/seccompagent ./contrib/cmd/seccompagent
+	$(GO_BUILD_STATIC) -o contrib/cmd/seccomphook/seccomphook ./contrib/cmd/seccomphook
 
 release:
 	script/release.sh -r release/$(VERSION) -v $(VERSION)
@@ -120,6 +122,8 @@ install-man: man
 clean:
 	rm -f runc runc-*
 	rm -f contrib/cmd/recvtty/recvtty
+	rm -f contrib/cmd/seccompagent/seccompagent
+	rm -f contrib/cmd/seccomphook/seccomphook
 	rm -rf release
 	rm -rf man/man8
 
@@ -160,4 +164,4 @@ localcross:
 	test localtest unittest localunittest integration localintegration \
 	rootlessintegration localrootlessintegration shell install install-bash \
 	install-man clean validate ci \
-	vendor verify-dependencies cross localcross
+	vendor verify-dependencies cross localcross seccompagent seccomphook
