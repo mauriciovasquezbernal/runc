@@ -18,6 +18,7 @@
 
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -28,6 +29,9 @@
 
 /* Get all of the CLONE_NEW* flags. */
 #include "namespace.h"
+
+/* Defined in mount.c. */
+extern int mount_id_mapped(const char *source, const char *target, pid_t pid);
 
 /* Synchronisation values. */
 enum sync_t {
@@ -93,6 +97,9 @@ struct nlconfig_t {
 	/* Mount sources opened outside the container userns. */
 	char *mountsources;
 	size_t mountsources_len;
+
+	char *mountdst;
+	size_t mountdst_len;
 };
 
 #define PANIC   "panic"
@@ -119,6 +126,7 @@ static int logfd = -1;
 #define UIDMAPPATH_ATTR	    27288
 #define GIDMAPPATH_ATTR	    27289
 #define MOUNT_SOURCES_ATTR		27290
+#define MOUNT_DST_ATTR		27291
 
 /*
  * Use the raw syscall for versions of glibc which don't include a function for
@@ -498,6 +506,10 @@ static void nl_parse(int fd, struct nlconfig_t *config)
 			config->mountsources = current;
 			config->mountsources_len = payload_len;
 			break;
+		case MOUNT_DST_ATTR:
+			config->mountdst = current;
+			config->mountdst_len = payload_len;
+			break;
 		default:
 			bail("unknown netlink message type %d", nlattr->nla_type);
 		}
@@ -708,7 +720,7 @@ void receive_mountsources(int sockfd, char *mountsources, size_t mountsources_le
 	}
 }
 
-void send_mountsources(int sockfd, pid_t child, char *mountsources, size_t mountsources_len)
+void send_mountsources(int sockfd, pid_t child, char *mountsources, size_t mountsources_len, char *mountdst, size_t mountdst_len)
 {
 	char proc_path[PATH_MAX];
 	int host_mntns_fd;
@@ -739,7 +751,16 @@ void send_mountsources(int sockfd, pid_t child, char *mountsources, size_t mount
 	while (mountsources < mountsources_end) {
 		if (mountsources[0] == '\0') {
 			mountsources++;
+			mountdst++;
 			continue;
+		}
+
+		// Do the idmapped mount.
+		write_log(DEBUG, "mounting %s->%s", mountsources, mountdst);
+		mkdir(mountdst, 0755);
+		ret = mount_id_mapped(mountsources, mountdst, child);
+		if (ret != 0) {
+			bail("failed to mount: %s->%s: %m", mountsources, mountdst);
 		}
 
 		fd = open(mountsources, O_PATH|O_CLOEXEC);
@@ -753,6 +774,7 @@ void send_mountsources(int sockfd, pid_t child, char *mountsources, size_t mount
 			bail("failed to close mount source fd %d", fd);
 
 		mountsources += strlen(mountsources) + 1;
+		mountdst += strlen(mountdst) + 1;
 	}
 
 	if (setns(host_mntns_fd, CLONE_NEWNS) < 0)
@@ -947,7 +969,7 @@ void nsexec(void)
 					}
 					break;
 				case SYNC_MOUNTSOURCES_PLS:
-					send_mountsources(syncfd, child, config.mountsources, config.mountsources_len);
+					send_mountsources(syncfd, child, config.mountsources, config.mountsources_len, config.mountdst, config.mountdst_len);
 
 					s = SYNC_MOUNTSOURCES_ACK;
 					if (write(syncfd, &s, sizeof(s)) != sizeof(s)) {

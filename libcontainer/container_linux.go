@@ -2087,17 +2087,27 @@ func (c *linuxContainer) bootstrapData(cloneFlags uintptr, nsMaps map[configs.Na
 
 	// bind mount source to open
 	if c.sendMountSources() {
-		var mounts []byte
+		var mountsSources []byte
+		var mountsDst []byte
+
 		for _, m := range c.config.Mounts {
 			if m.Device == "bind" {
-				mounts = append(mounts, []byte(m.Source)...)
+				mountsSources = append(mountsSources, []byte(m.Source)...)
+				dst, _ := securejoin.SecureJoin(c.config.Rootfs, m.Destination)
+				mountsDst = append(mountsDst, []byte(dst)...)
 			}
-			mounts = append(mounts, byte(0))
+			mountsSources = append(mountsSources, byte(0))
+			mountsDst = append(mountsDst, byte(0))
 		}
 
 		r.AddData(&Bytemsg{
 			Type:  MountSourcesAttr,
-			Value: mounts,
+			Value: mountsSources,
+		})
+
+		r.AddData(&Bytemsg{
+			Type:  MountDstAttr,
+			Value: mountsDst,
 		})
 	}
 

@@ -394,30 +394,31 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string, enableCgroupns b
 		}
 		return nil
 	case "bind":
-		if err := prepareBindMount(m, rootfs, mountFile); err != nil {
-			return err
-		}
-		if err := mountPropagate(m, rootfs, mountLabel, mountFile); err != nil {
-			return err
-		}
-		// bind mount won't change mount options, we need remount to make mount options effective.
-		// first check that we have non-default options required before attempting a remount
-		if m.Flags&^(unix.MS_REC|unix.MS_REMOUNT|unix.MS_BIND) != 0 {
-			// only remount if unique mount options are set
-			if err := remount(m, rootfs, mountFile); err != nil {
-				return err
-			}
-		}
-
-		if m.Relabel != "" {
-			if err := label.Validate(m.Relabel); err != nil {
-				return err
-			}
-			shared := label.IsShared(m.Relabel)
-			if err := label.Relabel(m.Source, mountLabel, shared); err != nil {
-				return err
-			}
-		}
+		//Mauricio: Bind mounts are handled in the parent now.
+//		if err := prepareBindMount(m, rootfs, mountFile); err != nil {
+//			return err
+//		}
+//		if err := mountPropagate(m, rootfs, mountLabel, mountFile); err != nil {
+//			return err
+//		}
+//		// bind mount won't change mount options, we need remount to make mount options effective.
+//		// first check that we have non-default options required before attempting a remount
+//		if m.Flags&^(unix.MS_REC|unix.MS_REMOUNT|unix.MS_BIND) != 0 {
+//			// only remount if unique mount options are set
+//			if err := remount(m, rootfs, mountFile); err != nil {
+//				return err
+//			}
+//		}
+//
+//		if m.Relabel != "" {
+//			if err := label.Validate(m.Relabel); err != nil {
+//				return err
+//			}
+//			shared := label.IsShared(m.Relabel)
+//			if err := label.Relabel(m.Source, mountLabel, shared); err != nil {
+//				return err
+//			}
+//		}
 	case "cgroup":
 		if cgroups.IsCgroup2UnifiedMode() {
 			return mountCgroupV2(m, rootfs, mountLabel, enableCgroupns)
