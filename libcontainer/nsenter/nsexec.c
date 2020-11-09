@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
@@ -720,6 +721,46 @@ void receive_mountsources(int sockfd, char *mountsources, size_t mountsources_le
 	}
 }
 
+// https://gist.github.com/JonathonReinhart/8c0d90191c38af2dcadb102c4e202950
+int mkdir_p(const char *path, mode_t mode)
+{
+    /* Adapted from http://stackoverflow.com/a/2336245/119527 */
+    const size_t len = strlen(path);
+    char _path[PATH_MAX];
+    char *p;
+
+    errno = 0;
+
+    /* Copy string so its mutable */
+    if (len > sizeof(_path)-1) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    strcpy(_path, path);
+
+    /* Iterate the string */
+    for (p = _path + 1; *p; p++) {
+        if (*p == '/') {
+            /* Temporarily truncate */
+            *p = '\0';
+
+            if (mkdir(_path, mode) != 0) {
+                if (errno != EEXIST)
+                    return -1;
+            }
+
+            *p = '/';
+        }
+    }
+
+    if (mkdir(_path, mode) != 0) {
+        if (errno != EEXIST)
+            return -1;
+    }
+
+    return 0;
+}
+
 void send_mountsources(int sockfd, pid_t child, char *mountsources, size_t mountsources_len, char *mountdst, size_t mountdst_len)
 {
 	char proc_path[PATH_MAX];
@@ -757,11 +798,37 @@ void send_mountsources(int sockfd, pid_t child, char *mountsources, size_t mount
 
 		// Do the idmapped mount.
 		write_log(DEBUG, "mounting %s->%s", mountsources, mountdst);
-		mkdir(mountdst, 0755);
-		ret = mount_id_mapped(mountsources, mountdst, child);
-		if (ret != 0) {
-			bail("failed to mount: %s->%s: %m", mountsources, mountdst);
+		struct stat src;
+		ret = stat(mountsources, &src);
+		if (ret)
+			bail("failed to stat %s %m", mountsources);
+
+		struct stat dst;
+		ret = stat(mountdst, &dst);
+		if (ret && errno != ENOENT) {
+			bail("failed to stat %s %m", mountdst);
+		} else {
+			if (src.st_mode & S_IFDIR) {
+				ret = mkdir_p(mountdst, 0755);
+				if (ret)
+					bail("failed to create dir for bind mount");
+			} else if (src.st_mode & S_IFREG) {
+				ret = mkdir_p(dirname(strdup(mountdst)), 0755);
+				if (ret)
+					bail("failed to create folder for bind mount");
+				ret = open(mountdst, O_CREAT, 0755);
+				if (ret < 0)
+					bail("failed to create file for bind mount");
+				if (ret > 0)
+					close(ret);
+			}
 		}
+
+		// Ignore the error because there are some mount types that do not support id map
+		// yet.
+		ret = mount_id_mapped(mountsources, mountdst, child);
+		//if (ret != 0)
+		//	bail("failed to mount: %s->%s: %m", mountsources, mountdst);
 
 		fd = open(mountsources, O_PATH|O_CLOEXEC);
 		if (fd < 0)
